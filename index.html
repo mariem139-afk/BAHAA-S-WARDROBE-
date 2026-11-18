@@ -1,0 +1,68 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eeeae3"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-192.png">
+<title>Bahaa's Wardrobe</title>
+<style>
+:root{--bg:#eeeae3;--paper:#faf8f4;--ink:#292925;--muted:#827f77;--line:#d8d2c8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{padding:28px 20px 18px;text-align:center;border-bottom:1px solid var(--line)}
+.brand{font:500 11px Georgia,serif;letter-spacing:3px;color:var(--muted)}
+h1{font:500 25px Georgia,serif;letter-spacing:1px;margin:8px 0}.sub{font-size:11px;color:var(--muted);letter-spacing:1px}
+main{max-width:760px;margin:auto;padding:20px 16px 90px}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 22px}
+.tab{border:1px solid var(--line);background:transparent;border-radius:3px;padding:13px 4px;color:var(--muted);font-size:11px}
+.tab.active{background:var(--ink);color:#f8f5ef;border-color:var(--ink)}
+.sectionhead{display:flex;justify-content:space-between;align-items:center;margin:12px 2px 14px}
+.sectionhead h2{font:500 19px Georgia,serif;margin:0}
+button{cursor:pointer}.add{background:var(--ink);color:white;border:0;border-radius:3px;padding:11px 14px;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.outfit{background:var(--paper);border:1px solid var(--line);min-width:0}
+.cover{aspect-ratio:4/5;background:#e3dfd7;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#a09a90;font:italic 15px Georgia}
+.cover img{width:100%;height:100%;object-fit:cover}.info{padding:12px}.name{font:16px Georgia;margin:0 0 6px}
+.meta{font-size:11px;color:var(--muted);line-height:1.6}.actions{display:flex;gap:8px;margin-top:10px}
+.small{border:1px solid var(--line);background:transparent;padding:7px 9px;font-size:11px;color:var(--ink)}
+.empty{grid-column:1/-1;text-align:center;padding:42px 16px;color:var(--muted);background:var(--paper);border:1px dashed var(--line);font-size:13px;line-height:1.9}
+dialog{border:0;border-radius:4px;background:var(--paper);color:var(--ink);width:min(92vw,520px);padding:20px;max-height:88vh;overflow:auto}
+dialog::backdrop{background:#17161388}dialog h3{font:20px Georgia;margin:0 0 16px}
+label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
+input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);background:white;border-radius:2px;font:14px inherit;color:var(--ink)}
+textarea{min-height:65px}.preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.preview img{width:72px;height:86px;object-fit:cover}
+.modalactions{display:flex;gap:8px;margin-top:18px}.modalactions button{flex:1}
+footer{text-align:center;color:var(--muted);font:11px Georgia;padding:24px}
+@media(max-width:420px){.grid{gap:9px}.info{padding:10px}.name{font-size:14px}}
+</style></head><body>
+<header><div class="brand">BAHAA'S PRIVATE COLLECTION</div><h1>WARDROBE</h1><div class="sub">A PERSONAL STYLE ARCHIVE</div></header>
+<main><div class="tabs"><button class="tab active" data-cat="casual">CASUAL</button><button class="tab" data-cat="smart">SMART / OLD MONEY</button><button class="tab" data-cat="business">BUSINESS / FORMAL</button></div>
+<div class="sectionhead"><h2 id="catTitle">Casual Meeting</h2><button class="add" id="newBtn">＋ ADD LOOK</button></div><div class="grid" id="looks"></div></main>
+<footer>BAHAA'S WARDROBE · PERSONAL USE</footer>
+<dialog id="editor"><h3 id="formTitle">NEW LOOK</h3>
+<label>Look name</label><input id="lookName" placeholder="e.g. Green Quarter-Zip">
+<label>Category</label><select id="lookCat"><option value="casual">Casual Meeting</option><option value="smart">Smart / Old Money</option><option value="business">Business / Formal</option></select>
+<label>Full outfit photo</label><input id="coverInput" type="file" accept="image/*">
+<label>Individual clothing photos (optional)</label><input id="itemsInput" type="file" accept="image/*" multiple>
+<label>Pieces / notes</label><textarea id="notes" placeholder="Sweater · trousers · shoes..."></textarea><div class="preview" id="preview"></div>
+<div class="modalactions"><button class="add" id="saveBtn">SAVE LOOK</button><button class="small" id="cancelBtn">CANCEL</button></div></dialog>
+<script>
+const DB='bahaaWardrobeDB',STORE='looks';let db,active='casual',editing=null,coverBlob=null,itemBlobs=[];
+const titles={casual:'Casual Meeting',smart:'Smart / Old Money',business:'Business / Formal'};
+let req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:'id',autoIncrement:true})};
+req.onsuccess=()=>{db=req.result;render()};
+function all(){return new Promise((ok,no)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>ok(r.result);r.onerror=no})}
+function save(x){return new Promise((ok,no)=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE)[x.id?'put':'add'](x);r.onsuccess=ok;r.onerror=no})}
+function del(id){return new Promise(ok=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE).delete(id);r.onsuccess=ok})}
+function blobURL(b){return b?URL.createObjectURL(b):''}
+async function render(){if(!db)return;document.getElementById('catTitle').textContent=titles[active];document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.cat===active));let data=(await all()).filter(x=>x.cat===active),root=document.getElementById('looks');root.innerHTML='';
+if(!data.length){root.innerHTML='<div class="empty">Your collection starts here.<br>اضيفي صورة الطقم وقطعه من موبايلك وابدئي تنسيق دولاب بهاء.</div>';return}
+data.forEach(x=>{let c=document.createElement('article');c.className='outfit';let cover=document.createElement('div');cover.className='cover';if(x.cover){let im=document.createElement('img');im.src=blobURL(x.cover);cover.append(im)}else cover.textContent='YOUR LOOK';
+let info=document.createElement('div');info.className='info';let n=document.createElement('p');n.className='name';n.textContent=x.name;let m=document.createElement('div');m.className='meta';m.textContent=x.notes||((x.items||[]).length+' clothing photos');
+let a=document.createElement('div');a.className='actions';let e=document.createElement('button');e.className='small';e.textContent='EDIT';e.onclick=()=>openEditor(x);let d=document.createElement('button');d.className='small';d.textContent='DELETE';d.onclick=async()=>{if(confirm('Delete this look?')){await del(x.id);render()}};a.append(e,d);info.append(n,m,a);c.append(cover,info);root.append(c)})}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{active=b.dataset.cat;render()});
+const dlg=document.getElementById('editor');
+function openEditor(x){editing=x||null;coverBlob=x?.cover||null;itemBlobs=x?.items||[];document.getElementById('formTitle').textContent=x?'EDIT LOOK':'NEW LOOK';document.getElementById('lookName').value=x?.name||'';document.getElementById('lookCat').value=x?.cat||active;document.getElementById('notes').value=x?.notes||'';document.getElementById('coverInput').value='';document.getElementById('itemsInput').value='';preview();dlg.showModal()}
+function preview(){let p=document.getElementById('preview');p.innerHTML='';[coverBlob,...itemBlobs].filter(Boolean).forEach(b=>{let im=document.createElement('img');im.src=blobURL(b);p.append(im)})}
+document.getElementById('newBtn').onclick=()=>openEditor();document.getElementById('cancelBtn').onclick=()=>dlg.close();
+document.getElementById('coverInput').onchange=e=>{coverBlob=e.target.files[0]||coverBlob;preview()};
+document.getElementById('itemsInput').onchange=e=>{itemBlobs=[...itemBlobs,...Array.from(e.target.files)];preview()};
+document.getElementById('saveBtn').onclick=async()=>{let x={...(editing||{}),name:document.getElementById('lookName').value.trim()||'Untitled Look',cat:document.getElementById('lookCat').value,notes:document.getElementById('notes').value,cover:coverBlob,items:itemBlobs};await save(x);active=x.cat;dlg.close();render()};
+if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+</script></body></html>
