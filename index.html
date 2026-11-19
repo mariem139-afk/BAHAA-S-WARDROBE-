@@ -45,24 +45,59 @@ footer{text-align:center;color:var(--muted);font:11px Georgia;padding:24px}
 <script>
 const DB='bahaaWardrobeDB',STORE='looks';let db,active='casual',editing=null,coverBlob=null,itemBlobs=[];
 const titles={casual:'Casual Meeting',smart:'Smart / Old Money',business:'Business / Formal'};
+
+// الأطقم الافتراضية التي ستظهر للجميع فور فتح الموقع
+const defaultLooks = [
+  { id: 'def1', name: 'Casual Look 1', cat: 'casual', cover: 'photo_2026-11-18_17-52-11.jpg', notes: 'Casual outfit selection', isDefault: true },
+  { id: 'def2', name: 'Casual Look 2', cat: 'casual', cover: 'photo_2026-11-18_17-52-26.jpg', notes: 'Casual outfit selection', isDefault: true },
+  { id: 'def3', name: 'Smart / Old Money 1', cat: 'smart', cover: 'photo_2026-11-18_17-52-34.jpg', notes: 'Smart classic style', isDefault: true },
+  { id: 'def4', name: 'Smart / Old Money 2', cat: 'smart', cover: 'photo_2026-11-18_17-52-40.jpg', notes: 'Smart classic style', isDefault: true },
+  { id: 'def5', name: 'Business / Formal 1', cat: 'business', cover: 'photo_2026-11-18_17-52-47.jpg', notes: 'Formal attire', isDefault: true }
+];
+
 let req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:'id',autoIncrement:true})};
 req.onsuccess=()=>{db=req.result;render()};
 function all(){return new Promise((ok,no)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>ok(r.result);r.onerror=no})}
 function save(x){return new Promise((ok,no)=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE)[x.id?'put':'add'](x);r.onsuccess=ok;r.onerror=no})}
 function del(id){return new Promise(ok=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE).delete(id);r.onsuccess=ok})}
-function blobURL(b){return b?URL.createObjectURL(b):''}
-async function render(){if(!db)return;document.getElementById('catTitle').textContent=titles[active];document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.cat===active));let data=(await all()).filter(x=>x.cat===active),root=document.getElementById('looks');root.innerHTML='';
-if(!data.length){root.innerHTML='<div class="empty">Your collection starts here.<br>اضيفي صورة الطقم وقطعه من موبايلك وابدئي تنسيق دولاب بهاء.</div>';return}
-data.forEach(x=>{let c=document.createElement('article');c.className='outfit';let cover=document.createElement('div');cover.className='cover';if(x.cover){let im=document.createElement('img');im.src=blobURL(x.cover);cover.append(im)}else cover.textContent='YOUR LOOK';
-let info=document.createElement('div');info.className='info';let n=document.createElement('p');n.className='name';n.textContent=x.name;let m=document.createElement('div');m.className='meta';m.textContent=x.notes||((x.items||[]).length+' clothing photos');
-let a=document.createElement('div');a.className='actions';let e=document.createElement('button');e.className='small';e.textContent='EDIT';e.onclick=()=>openEditor(x);let d=document.createElement('button');d.className='small';d.textContent='DELETE';d.onclick=async()=>{if(confirm('Delete this look?')){await del(x.id);render()}};a.append(e,d);info.append(n,m,a);c.append(cover,info);root.append(c)})}
+function getImgURL(b){if(!b)return ''; return typeof b === 'string' ? b : URL.createObjectURL(b)}
+
+async function render(){
+  if(!db)return;
+  document.getElementById('catTitle').textContent=titles[active];
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.cat===active));
+  let savedData = await all();
+  let combinedData = [...defaultLooks, ...savedData].filter(x=>x.cat===active);
+  let root=document.getElementById('looks');root.innerHTML='';
+  if(!combinedData.length){root.innerHTML='<div class="empty">Your collection starts here.<br>اضيفي صورة الطقم وقطعه من موبايلك وابدئي تنسيق دولاب بهاء.</div>';return}
+  combinedData.forEach(x=>{
+    let c=document.createElement('article');c.className='outfit';
+    let cover=document.createElement('div');cover.className='cover';
+    if(x.cover){let im=document.createElement('img');im.src=getImgURL(x.cover);cover.append(im)}else cover.textContent='YOUR LOOK';
+    let info=document.createElement('div');info.className='info';
+    let n=document.createElement('p');n.className='name';n.textContent=x.name;
+    let m=document.createElement('div');m.className='meta';m.textContent=x.notes||((x.items||[]).length+' clothing photos');
+    info.append(n,m);
+    if(!x.isDefault){
+      let a=document.createElement('div');a.className='actions';
+      let e=document.createElement('button');e.className='small';e.textContent='EDIT';e.onclick=()=>openEditor(x);
+      let d=document.createElement('button');d.className='small';d.textContent='DELETE';d.onclick=async()=>{if(confirm('Delete this look?')){await del(x.id);render()}};
+      a.append(e,d);info.append(a);
+    }
+    c.append(cover,info);root.append(c);
+  });
+}
+
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{active=b.dataset.cat;render()});
 const dlg=document.getElementById('editor');
 function openEditor(x){editing=x||null;coverBlob=x?.cover||null;itemBlobs=x?.items||[];document.getElementById('formTitle').textContent=x?'EDIT LOOK':'NEW LOOK';document.getElementById('lookName').value=x?.name||'';document.getElementById('lookCat').value=x?.cat||active;document.getElementById('notes').value=x?.notes||'';document.getElementById('coverInput').value='';document.getElementById('itemsInput').value='';preview();dlg.showModal()}
-function preview(){let p=document.getElementById('preview');p.innerHTML='';[coverBlob,...itemBlobs].filter(Boolean).forEach(b=>{let im=document.createElement('img');im.src=blobURL(b);p.append(im)})}
+function preview(){let p=document.getElementById('preview');p.innerHTML='';[coverBlob,...itemBlobs].filter(Boolean).forEach(b=>{let im=document.createElement('img');im.src=getImgURL(b);p.append(im)})}
 document.getElementById('newBtn').onclick=()=>openEditor();document.getElementById('cancelBtn').onclick=()=>dlg.close();
 document.getElementById('coverInput').onchange=e=>{coverBlob=e.target.files[0]||coverBlob;preview()};
 document.getElementById('itemsInput').onchange=e=>{itemBlobs=[...itemBlobs,...Array.from(e.target.files)];preview()};
-document.getElementById('saveBtn').onclick=async()=>{let x={...(editing||{}),name:document.getElementById('lookName').value.trim()||'Untitled Look',cat:document.getElementById('lookCat').value,notes:document.getElementById('notes').value,cover:coverBlob,items:itemBlobs};await save(x);active=x.cat;dlg.close();render()};
-if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+document.getElementById('saveBtn').onclick=async()=>{
+  let x={name:document.getElementById('lookName').value.trim()||'Untitled Look',cat:document.getElementById('lookCat').value,cover:coverBlob,items:itemBlobs,notes:document.getElementById('notes').value.trim()};
+  if(editing && editing.id) x.id = editing.id;
+  await save(x);dlg.close();render();
+};
 </script></body></html>
