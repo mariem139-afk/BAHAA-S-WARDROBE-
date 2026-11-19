@@ -45,6 +45,10 @@ footer{text-align:center;color:var(--muted);font:11px Georgia;padding:24px}
 <div class="modalactions"><button class="add" id="saveBtn">SAVE LOOK</button><button class="small" id="cancelBtn">CANCEL</button></div></dialog>
 
 <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+}
+
 const ADMIN_PASS = "1234";
 const DB_URL = ["https:", "", "://googleapis.com", "v1", "projects", "bahaa-wardrobe", "databases", "(default)", "documents", "looks"].join("/");
 let isAdmin = localStorage.getItem("wardrobe_admin") === "true";
@@ -145,7 +149,7 @@ const dlg = document.getElementById('editor');
 
 function openEditor(x) {
   editing = x || null; coverDataUrl = x?.cover || '';
-  document.getElementById('formTitle').textContent = x ? 'EDIT LOOK' : 'NEW LOOK';
+document.getElementById('formTitle').textContent = x ? 'EDIT LOOK' : 'NEW LOOK';
 document.getElementById('lookName').value = x?.name || '';
 document.getElementById('lookCat').value = x?.cat || active;
 document.getElementById('notes').value = x?.notes || '';
@@ -156,9 +160,10 @@ dlg.showModal();
 document.getElementById('newBtn').onclick = () => openEditor();
 document.getElementById('cancelBtn').onclick = () => dlg.close();
 document.getElementById('coverInput').onchange = async (e) => {
-if (e.target.files) {
+const file = e.target.files.item(0);
+if (file) {
 document.getElementById('saveBtn').textContent = "Preparing...";
-coverDataUrl = await compressImage(e.target.files);
+coverDataUrl = await compressImage(file);
 document.getElementById('preview').innerHTML = <img src="${coverDataUrl}">;
 document.getElementById('saveBtn').textContent = "SAVE LOOK";
 }
