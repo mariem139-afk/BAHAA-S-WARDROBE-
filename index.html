@@ -29,74 +29,200 @@ input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);backg
 textarea{min-height:65px}.preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.preview img{width:72px;height:86px;object-fit:cover}
 .modalactions{display:flex;gap:8px;margin-top:18px}.modalactions button{flex:1}
 footer{text-align:center;color:var(--muted);font:11px Georgia;padding:24px}
+.admin-bar{margin-top:12px}.admin-btn{background:none;border:0;color:var(--muted);font-size:10px;letter-spacing:1px;text-decoration:underline;opacity:0.6}
 @media(max-width:420px){.grid{gap:9px}.info{padding:10px}.name{font-size:14px}}
 </style></head><body>
 <header><div class="brand">BAHAA'S PRIVATE COLLECTION</div><h1>WARDROBE</h1><div class="sub">A PERSONAL STYLE ARCHIVE</div></header>
 <main><div class="tabs"><button class="tab active" data-cat="casual">CASUAL</button><button class="tab" data-cat="smart">SMART / OLD MONEY</button><button class="tab" data-cat="business">BUSINESS / FORMAL</button></div>
-<div class="sectionhead"><h2 id="catTitle">Casual Meeting</h2><button class="add" id="newBtn">＋ ADD LOOK</button></div><div class="grid" id="looks"></div></main>
-<footer>BAHAA'S WARDROBE · PERSONAL USE</footer>
+<div class="sectionhead"><h2 id="catTitle">Casual Meeting</h2><button class="add" id="newBtn" style="display:none">＋ ADD LOOK</button></div><div class="grid" id="looks"><div class="empty">Loading collection...</div></div></main>
+<footer>BAHAA'S WARDROBE · PERSONAL USE<div class="admin-bar"><button class="admin-btn" id="adminToggle">ADMIN LOGIN</button></div></footer>
+
 <dialog id="editor"><h3 id="formTitle">NEW LOOK</h3>
 <label>Look name</label><input id="lookName" placeholder="e.g. Green Quarter-Zip">
 <label>Category</label><select id="lookCat"><option value="casual">Casual Meeting</option><option value="smart">Smart / Old Money</option><option value="business">Business / Formal</option></select>
 <label>Full outfit photo</label><input id="coverInput" type="file" accept="image/*">
-<label>Individual clothing photos (optional)</label><input id="itemsInput" type="file" accept="image/*" multiple>
 <label>Pieces / notes</label><textarea id="notes" placeholder="Sweater · trousers · shoes..."></textarea><div class="preview" id="preview"></div>
 <div class="modalactions"><button class="add" id="saveBtn">SAVE LOOK</button><button class="small" id="cancelBtn">CANCEL</button></div></dialog>
-<script>
-const DB='bahaaWardrobeDB',STORE='looks';let db,active='casual',editing=null,coverBlob=null,itemBlobs=[];
-const titles={casual:'Casual Meeting',smart:'Smart / Old Money',business:'Business / Formal'};
 
-const defaultLooks = [
-  { id: 'def1', name: 'Casual Look 1', cat: 'casual', cover: 'photo_2026-11-18_17-52-11.jpg', notes: 'Casual outfit selection', isDefault: true },
-  { id: 'def2', name: 'Casual Look 2', cat: 'casual', cover: 'photo_2026-11-18_17-52-26.jpg', notes: 'Casual outfit selection', isDefault: true },
-  { id: 'def3', name: 'Smart / Old Money 1', cat: 'smart', cover: 'photo_2026-11-18_17-52-34.jpg', notes: 'Smart classic style', isDefault: true },
-  { id: 'def4', name: 'Smart / Old Money 2', cat: 'smart', cover: 'photo_2026-11-18_17-52-40.jpg', notes: 'Smart classic style', isDefault: true },
-  { id: 'def5', name: 'Business / Formal 1', cat: 'business', cover: 'photo_2026-11-18_17-52-47.jpg', notes: 'Formal attire', isDefault: true }
+<script type="module">
+const cdnBase = ["https:", "", "://gstatic.com", "firebasejs", "10.8.0"].join("/");
+const { initializeApp } = await import(`${cdnBase}/firebase-app.js`);
+const { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } = await import(`${cdnBase}/firebase-firestore.js`);
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAKKndtUCqJCe9VDztvPMB8DvLoiT3zwmc",
+  authDomain: ["bahaa-wardrobe", "firebaseapp", "com"].join("."),
+  projectId: "bahaa-wardrobe",
+  storageBucket: ["bahaa-wardrobe", "firebasestorage", "app"].join("."),
+  messagingSenderId: "642608271470",
+  appId: "1:642608271470:web:783b02b5db5c464bb4d67f"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const looksCol = collection(db, "looks");
+
+const ADMIN_PASS = "1234";
+let isAdmin = localStorage.getItem("wardrobe_admin") === "true";
+
+let active = 'casual', editing = null, coverDataUrl = '';
+const titles = { casual: 'Casual Meeting', smart: 'Smart / Old Money', business: 'Business / Formal' };
+
+const initialGithubLooks = [
+  { id: 'gh1', name: 'Casual Look 1', cat: 'casual', cover: 'photo_2026-11-18_17-52-11.jpg', notes: 'Casual outfit selection', isGithub: true },
+  { id: 'gh2', name: 'Casual Look 2', cat: 'casual', cover: 'photo_2026-11-18_17-52-26.jpg', notes: 'Casual outfit selection', isGithub: true },
+  { id: 'gh3', name: 'Casual Look 3', cat: 'casual', cover: 'photo_2026-11-18_17-52-34.jpg', notes: 'Casual outfit selection', isGithub: true },
+  { id: 'gh4', name: 'Casual Look 4', cat: 'casual', cover: 'photo_2026-11-18_17-52-40.jpg', notes: 'Casual outfit selection', isGithub: true },
+  { id: 'gh5', name: 'Casual Look 5', cat: 'casual', cover: 'photo_2026-11-18_17-52-47.jpg', notes: 'Casual outfit selection', isGithub: true },
+  { id: 'gh6', name: 'Smart / Old Money 1', cat: 'smart', cover: 'photo_2026-11-18_17-52-55.jpg', notes: 'Smart classic style', isGithub: true },
+  { id: 'gh7', name: 'Smart / Old Money 2', cat: 'smart', cover: 'photo_2026-11-18_17-53-02.jpg', notes: 'Smart classic style', isGithub: true },
+  { id: 'gh8', name: 'Business / Formal 1', cat: 'business', cover: 'photo_2026-11-18_17-53-11.jpg', notes: 'Formal attire', isGithub: true }
 ];
 
-let req=indexedDB.open(DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:'id',autoIncrement:true})};
-req.onsuccess=()=>{db=req.result;render()};
-function all(){return new Promise((ok,no)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>ok(r.result);r.onerror=no})}
-function save(x){return new Promise((ok,no)=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE)[x.id?'put':'add'](x);r.onsuccess=ok;r.onerror=no})}
-function del(id){return new Promise(ok=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE).delete(id);r.onsuccess=ok})}
-function getImgURL(b){if(!b)return ''; return typeof b === 'string' ? b : URL.createObjectURL(b)}
-
-async function render(){
-  if(!db)return;
-  document.getElementById('catTitle').textContent=titles[active];
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.cat===active));
-  let savedData = await all();
-  let combinedData = [...defaultLooks, ...savedData].filter(x=>x.cat===active);
-  let root=document.getElementById('looks');root.innerHTML='';
-  if(!combinedData.length){root.innerHTML='<div class="empty">Your collection starts here.<br>اضيفي صورة الطقم وقطعه من موبايلك وابدئي تنسيق دولاب بهاء.</div>';return}
-  combinedData.forEach(x=>{
-    let c=document.createElement('article');c.className='outfit';
-    let cover=document.createElement('div');cover.className='cover';
-    if(x.cover){let im=document.createElement('img');im.src=getImgURL(x.cover);cover.append(im)}else cover.textContent='YOUR LOOK';
-    let info=document.createElement('div');info.className='info';
-    let n=document.createElement('p');n.className='name';n.textContent=x.name;
-    let m=document.createElement('div');m.className='meta';m.textContent=x.notes||((x.items||[]).length+' clothing photos');
-    info.append(n,m);
-    if(!x.isDefault){
-      let a=document.createElement('div');a.className='actions';
-      let e=document.createElement('button');e.className='small';e.textContent='EDIT';e.onclick=()=>openEditor(x);
-      let d=document.createElement('button');d.className='small';d.textContent='DELETE';d.onclick=async()=>{if(confirm('Delete this look?')){await del(x.id);render()}};
-      a.append(e,d);info.append(a);
-    }
-    c.append(cover,info);root.append(c);
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxW = 800;
+        const scale = Math.min(1, maxW / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{active=b.dataset.cat;render()});
-const dlg=document.getElementById('editor');
-function openEditor(x){editing=x||null;coverBlob=x?.cover||null;itemBlobs=x?.items||[];document.getElementById('formTitle').textContent=x?'EDIT LOOK':'NEW LOOK';document.getElementById('lookName').value=x?.name||'';document.getElementById('lookCat').value=x?.cat||active;document.getElementById('notes').value=x?.notes||'';document.getElementById('coverInput').value='';document.getElementById('itemsInput').value='';preview();dlg.showModal()}
-function preview(){let p=document.getElementById('preview');p.innerHTML='';[coverBlob,...itemBlobs].filter(Boolean).forEach(b=>{let im=document.createElement('img');im.src=getImgURL(b);p.append(im)})}
-document.getElementById('newBtn').onclick=()=>openEditor();document.getElementById('cancelBtn').onclick=()=>dlg.close();
-document.getElementById('coverInput').onchange=e=>{coverBlob=e.target.files[0]||coverBlob;preview()};
-document.getElementById('itemsInput').onchange=e=>{itemBlobs=[...itemBlobs,...Array.from(e.target.files)];preview()};
-document.getElementById('saveBtn').onclick=async()=>{
-  let x={name:document.getElementById('lookName').value.trim()||'Untitled Look',cat:document.getElementById('lookCat').value,cover:coverBlob,items:itemBlobs,notes:document.getElementById('notes').value.trim()};
-  if(editing && editing.id) x.id = editing.id;
-  await save(x);dlg.close();render();
+function updateAdminUI() {
+  document.getElementById('newBtn').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('adminToggle').textContent = isAdmin ? 'ADMIN LOGOUT' : 'ADMIN LOGIN';
+}
+
+document.getElementById('adminToggle').onclick = () => {
+  if (isAdmin) {
+    isAdmin = false;
+    localStorage.removeItem("wardrobe_admin");
+    updateAdminUI();
+    render();
+  } else {
+    const pass = prompt("أدخلي كلمة السر للإدارة:");
+    if (pass === ADMIN_PASS) {
+      isAdmin = true;
+      localStorage.setItem("wardrobe_admin", "true");
+      updateAdminUI();
+      render();
+    } else if (pass !== null) {
+      alert("كلمة السر غير صحيحة");
+    }
+  }
 };
-</script></body></html>
+
+async function render() {
+  updateAdminUI();
+  document.getElementById('catTitle').textContent = titles[active];
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.cat === active));
+  const root = document.getElementById('looks');
+  
+  let cloudLooks = [];
+  try {
+    const snap = await getDocs(looksCol);
+    snap.forEach(d => cloudLooks.push({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error(err);
+  }
+
+  const allLooks = [...cloudLooks, ...initialGithubLooks].filter(x => x.cat === active);
+  root.innerHTML = '';
+
+  if (!allLooks.length) {
+    root.innerHTML = '<div class="empty">لا توجد أطقم في هذا القسم حالياً.</div>';
+    return;
+  }
+
+  allLooks.forEach(x => {
+    const c = document.createElement('article'); c.className = 'outfit';
+    const cover = document.createElement('div'); cover.className = 'cover';
+    if (x.cover) { const im = document.createElement('img'); im.src = x.cover; cover.append(im); }
+    const info = document.createElement('div'); info.className = 'info';
+    const n = document.createElement('p'); n.className = 'name'; n.textContent = x.name;
+    const m = document.createElement('div'); m.className = 'meta'; m.textContent = x.notes || '';
+    info.append(n, m);
+
+    if (isAdmin && !x.isGithub) {
+      const a = document.createElement('div'); a.className = 'actions';
+      const e = document.createElement('button'); e.className = 'small'; e.textContent = 'EDIT'; e.onclick = () => openEditor(x);
+      const d = document.createElement('button'); d.className = 'small'; d.textContent = 'DELETE';
+      d.onclick = async () => {
+Use code with caution.
+if (confirm('هل تريدين حذف هذا الطقم نهائياً؟')) {
+await deleteDoc(doc(db, "looks", x.id));
+render();
+}
+};
+a.append(e, d); info.append(a);
+}
+c.append(cover, info); root.append(c);
+});
+}
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { active = b.dataset.cat; render(); });
+const dlg = document.getElementById('editor');
+function openEditor(x) {
+editing = x || null;
+coverDataUrl = x?.cover || '';
+document.getElementById('formTitle').textContent = x ? 'EDIT LOOK' : 'NEW LOOK';
+document.getElementById('lookName').value = x?.name || '';
+document.getElementById('lookCat').value = x?.cat || active;
+document.getElementById('notes').value = x?.notes || '';
+document.getElementById('coverInput').value = '';
+preview();
+dlg.showModal();
+}
+function preview() {
+const p = document.getElementById('preview');
+p.innerHTML = '';
+if (coverDataUrl) { const im = document.createElement('img'); im.src = coverDataUrl; p.append(im); }
+}
+document.getElementById('newBtn').onclick = () => openEditor();
+document.getElementById('cancelBtn').onclick = () => dlg.close();
+document.getElementById('coverInput').onchange = async (e) => {
+if (e.target.files && e.target.files[0]) {
+document.getElementById('saveBtn').textContent = "جاري تجهيز الصورة...";
+document.getElementById('saveBtn').disabled = true;
+coverDataUrl = await compressImage(e.target.files[0]);
+preview();
+document.getElementById('saveBtn').textContent = "SAVE LOOK";
+document.getElementById('saveBtn').disabled = false;
+}
+};
+document.getElementById('saveBtn').onclick = async () => {
+const btn = document.getElementById('saveBtn');
+btn.textContent = "جاري الحفظ...";
+btn.disabled = true;
+try {
+const payload = {
+name: document.getElementById('lookName').value.trim() || 'Untitled Look',
+cat: document.getElementById('lookCat').value,
+cover: coverDataUrl,
+notes: document.getElementById('notes').value.trim(),
+createdAt: Date.now()
+};
+if (editing && editing.id) {
+await updateDoc(doc(db, "looks", editing.id), payload);
+} else {
+await addDoc(looksCol, payload);
+}
+dlg.close();
+render();
+} catch (err) {
+alert("حدث خطأ أثناء الحفظ: " + err.message);
+}
+btn.textContent = "SAVE LOOK";
+btn.disabled = false;
+};
+render();
