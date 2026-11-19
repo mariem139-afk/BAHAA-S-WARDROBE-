@@ -31,7 +31,10 @@ textarea{min-height:65px}.preview{display:flex;gap:8px;flex-wrap:wrap;margin-top
 footer{text-align:center;color:var(--muted);font:11px Georgia;padding:24px}
 .admin-bar{margin-top:12px}.admin-btn{background:none;border:0;color:var(--muted);font-size:10px;letter-spacing:1px;text-decoration:underline;opacity:0.6}
 @media(max-width:420px){.grid{gap:9px}.info{padding:10px}.name{font-size:14px}}
-</style></head><body>
+</style>
+<script>document.write('<scr'+'ipt src="https:'+'//www.'+'gstatic'+'.com/firebasejs/10.8.0/firebase-app-compat.js"></scr'+'ipt>');</script>
+<script>document.write('<scr'+'ipt src="https:'+'//www.'+'gstatic'+'.com/firebasejs/10.8.0/firebase-firestore-compat.js"></scr'+'ipt>');</script>
+</head><body>
 <header><div class="brand">BAHAA'S PRIVATE COLLECTION</div><h1>WARDROBE</h1><div class="sub">A PERSONAL STYLE ARCHIVE</div></header>
 <main><div class="tabs"><button class="tab active" data-cat="casual">CASUAL</button><button class="tab" data-cat="smart">SMART / OLD MONEY</button><button class="tab" data-cat="business">BUSINESS / FORMAL</button></div>
 <div class="sectionhead"><h2 id="catTitle">Casual Meeting</h2><button class="add" id="newBtn" style="display:none">＋ ADD LOOK</button></div><div class="grid" id="looks"><div class="empty">Loading collection...</div></div></main>
@@ -44,23 +47,19 @@ footer{text-align:center;color:var(--muted);font:11px Georgia;padding:24px}
 <label>Pieces / notes</label><textarea id="notes" placeholder="Sweater · trousers · shoes..."></textarea><div class="preview" id="preview"></div>
 <div class="modalactions"><button class="add" id="saveBtn">SAVE LOOK</button><button class="small" id="cancelBtn">CANCEL</button></div></dialog>
 
-<script type="module">
-const cdnBase = ["https:", "", "://gstatic.com", "firebasejs", "10.8.0"].join("/");
-const { initializeApp } = await import(`${cdnBase}/firebase-app.js`);
-const { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } = await import(`${cdnBase}/firebase-firestore.js`);
-
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyAKKndtUCqJCe9VDztvPMB8DvLoiT3zwmc",
-  authDomain: ["bahaa-wardrobe", "firebaseapp", "com"].join("."),
+  authDomain: "bahaa-wardrobe.firebaseapp.com",
   projectId: "bahaa-wardrobe",
-  storageBucket: ["bahaa-wardrobe", "firebasestorage", "app"].join("."),
+  storageBucket: "bahaa-wardrobe.firebasestorage.app",
   messagingSenderId: "642608271470",
   appId: "1:642608271470:web:783b02b5db5c464bb4d67f"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const looksCol = collection(db, "looks");
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const looksCol = db.collection("looks");
 
 const ADMIN_PASS = "1234";
 let isAdmin = localStorage.getItem("wardrobe_admin") === "true";
@@ -131,7 +130,7 @@ async function render() {
   
   let cloudLooks = [];
   try {
-    const snap = await getDocs(looksCol);
+    const snap = await looksCol.get();
     snap.forEach(d => cloudLooks.push({ id: d.id, ...d.data() }));
   } catch (err) {
     console.error(err);
@@ -159,14 +158,13 @@ async function render() {
       const e = document.createElement('button'); e.className = 'small'; e.textContent = 'EDIT'; e.onclick = () => openEditor(x);
       const d = document.createElement('button'); d.className = 'small'; d.textContent = 'DELETE';
       d.onclick = async () => {
-Use code with caution.
-if (confirm('هل تريدين حذف هذا الطقم نهائياً؟')) {
-await deleteDoc(doc(db, "looks", x.id));
-render();
-}
-};
-a.append(e, d); info.append(a);
-}
+        if (confirm('هل تريدين حذف هذا الطقم نهائياً؟')) {
+          await looksCol.doc(x.id).delete();
+          render();
+        }
+      };
+      a.append(e, d); info.append(a);
+    }
 c.append(cover, info); root.append(c);
 });
 }
@@ -191,10 +189,10 @@ if (coverDataUrl) { const im = document.createElement('img'); im.src = coverData
 document.getElementById('newBtn').onclick = () => openEditor();
 document.getElementById('cancelBtn').onclick = () => dlg.close();
 document.getElementById('coverInput').onchange = async (e) => {
-if (e.target.files && e.target.files[0]) {
+if (e.target.files && e.target.files) {
 document.getElementById('saveBtn').textContent = "جاري تجهيز الصورة...";
 document.getElementById('saveBtn').disabled = true;
-coverDataUrl = await compressImage(e.target.files[0]);
+coverDataUrl = await compressImage(e.target.files);
 preview();
 document.getElementById('saveBtn').textContent = "SAVE LOOK";
 document.getElementById('saveBtn').disabled = false;
@@ -213,9 +211,9 @@ notes: document.getElementById('notes').value.trim(),
 createdAt: Date.now()
 };
 if (editing && editing.id) {
-await updateDoc(doc(db, "looks", editing.id), payload);
+await looksCol.doc(editing.id).update(payload);
 } else {
-await addDoc(looksCol, payload);
+await looksCol.add(payload);
 }
 dlg.close();
 render();
