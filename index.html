@@ -31,13 +31,10 @@ textarea{min-height:65px}.preview{display:flex;gap:8px;flex-wrap:wrap;margin-top
 footer{text-align:center;color:var(--muted);font:11px Georgia;padding:24px}
 .admin-bar{margin-top:12px}.admin-btn{background:none;border:0;color:var(--muted);font-size:10px;letter-spacing:1px;text-decoration:underline;opacity:0.6}
 @media(max-width:420px){.grid{gap:9px}.info{padding:10px}.name{font-size:14px}}
-</style>
-<script>document.write('<scr'+'ipt src="https:'+'//www.'+'gstatic'+'.com/firebasejs/10.8.0/firebase-app-compat.js"></scr'+'ipt>');</script>
-<script>document.write('<scr'+'ipt src="https:'+'//www.'+'gstatic'+'.com/firebasejs/10.8.0/firebase-firestore-compat.js"></scr'+'ipt>');</script>
-</head><body>
+</style></head><body>
 <header><div class="brand">BAHAA'S PRIVATE COLLECTION</div><h1>WARDROBE</h1><div class="sub">A PERSONAL STYLE ARCHIVE</div></header>
 <main><div class="tabs"><button class="tab active" data-cat="casual">CASUAL</button><button class="tab" data-cat="smart">SMART / OLD MONEY</button><button class="tab" data-cat="business">BUSINESS / FORMAL</button></div>
-<div class="sectionhead"><h2 id="catTitle">Casual Meeting</h2><button class="add" id="newBtn" style="display:none">＋ ADD LOOK</button></div><div class="grid" id="looks"><div class="empty">Loading collection...</div></div></main>
+<div class="sectionhead"><h2 id="catTitle">Casual Meeting</h2><button class="add" id="newBtn" style="display:none">＋ ADD LOOK</button></div><div class="grid" id="looks"></div></main>
 <footer>BAHAA'S WARDROBE · PERSONAL USE<div class="admin-bar"><button class="admin-btn" id="adminToggle">ADMIN LOGIN</button></div></footer>
 
 <dialog id="editor"><h3 id="formTitle">NEW LOOK</h3>
@@ -48,23 +45,9 @@ footer{text-align:center;color:var(--muted);font:11px Georgia;padding:24px}
 <div class="modalactions"><button class="add" id="saveBtn">SAVE LOOK</button><button class="small" id="cancelBtn">CANCEL</button></div></dialog>
 
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAKKndtUCqJCe9VDztvPMB8DvLoiT3zwmc",
-  authDomain: "bahaa-wardrobe.firebaseapp.com",
-  projectId: "bahaa-wardrobe",
-  storageBucket: "bahaa-wardrobe.firebasestorage.app",
-  messagingSenderId: "642608271470",
-  appId: "1:642608271470:web:783b02b5db5c464bb4d67f"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const looksCol = db.collection("looks");
-
 const ADMIN_PASS = "1234";
 let isAdmin = localStorage.getItem("wardrobe_admin") === "true";
-
-let active = 'casual', editing = null, coverDataUrl = '';
+let active = 'casual', editing = null, coverDataUrl = '', cloudLooks = [], looksCol = null;
 const titles = { casual: 'Casual Meeting', smart: 'Smart / Old Money', business: 'Business / Formal' };
 
 const initialGithubLooks = [
@@ -78,6 +61,76 @@ const initialGithubLooks = [
   { id: 'gh8', name: 'Business / Formal 1', cat: 'business', cover: 'photo_2026-11-18_17-53-11.jpg', notes: 'Formal attire', isGithub: true }
 ];
 
+function updateAdminUI() {
+  document.getElementById('newBtn').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('adminToggle').textContent = isAdmin ? 'ADMIN LOGOUT' : 'ADMIN LOGIN';
+}
+
+function render() {
+  updateAdminUI();
+  document.getElementById('catTitle').textContent = titles[active];
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.cat === active));
+  const root = document.getElementById('looks');
+  const allLooks = [...cloudLooks, ...initialGithubLooks].filter(x => x.cat === active);
+  root.innerHTML = allLooks.length ? '' : '<div class="empty">لا توجد أطقم في هذا القسم حالياً.</div>';
+  allLooks.forEach(x => {
+    const c = document.createElement('article'); c.className = 'outfit';
+    const cover = document.createElement('div'); cover.className = 'cover';
+    if (x.cover) { const im = document.createElement('img'); im.src = x.cover; cover.append(im); }
+    const info = document.createElement('div'); info.className = 'info';
+    const n = document.createElement('p'); n.className = 'name'; n.textContent = x.name;
+    const m = document.createElement('div'); m.className = 'meta'; m.textContent = x.notes || '';
+    info.append(n, m);
+    if (isAdmin && !x.isGithub && looksCol) {
+      const a = document.createElement('div'); a.className = 'actions';
+      const e = document.createElement('button'); e.className = 'small'; e.textContent = 'EDIT'; e.onclick = () => openEditor(x);
+      const d = document.createElement('button'); d.className = 'small'; d.textContent = 'DELETE';
+      d.onclick = async () => { if (confirm('حذف هذا الطقم نهائياً؟')) { await looksCol.doc(x.id).delete(); loadCloud(); } };
+      a.append(e, d); info.append(a);
+    }
+    c.append(cover, info); root.append(c);
+  });
+}
+
+// عرض الصور الأساسية فوراً بدون أي انتظار
+render();
+
+function loadScript(src) {
+  return new Promise((ok, no) => {
+    const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s);
+  });
+}
+
+async function initCloud() {
+  try {
+    const base = ['https:', '', 'www.' + 'gstatic' + '.com', 'firebasejs', '10.8.0'].join('/');
+    await loadScript(base + '/firebase-app-compat.js');
+    await loadScript(base + '/firebase-firestore-compat.js');
+    firebase.initializeApp({
+      apiKey: "AIzaSyAKKndtUCqJCe9VDztvPMB8DvLoiT3zwmc",
+      authDomain: ["bahaa-wardrobe", "firebaseapp", "com"].join("."),
+      projectId: "bahaa-wardrobe",
+      storageBucket: ["bahaa-wardrobe", "firebasestorage", "app"].join("."),
+      messagingSenderId: "642608271470",
+      appId: "1:642608271470:web:783b02b5db5c464bb4d67f"
+    });
+    looksCol = firebase.firestore().collection("looks");
+    await loadCloud();
+  } catch (e) { console.log("Cloud init:", e); }
+}
+
+async function loadCloud() {
+  if (!looksCol) return;
+  try {
+    const snap = await looksCol.get();
+    cloudLooks = [];
+    snap.forEach(d => cloudLooks.push({ id: d.id, ...d.data() }));
+    render();
+  } catch (e) { console.log("Cloud fetch:", e); }
+}
+
+initCloud();
+
 function compressImage(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -85,8 +138,7 @@ function compressImage(file) {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const maxW = 800;
-        const scale = Math.min(1, maxW / img.width);
+        const scale = Math.min(1, 800 / img.width);
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -98,129 +150,44 @@ function compressImage(file) {
   });
 }
 
-function updateAdminUI() {
-  document.getElementById('newBtn').style.display = isAdmin ? 'inline-block' : 'none';
-  document.getElementById('adminToggle').textContent = isAdmin ? 'ADMIN LOGOUT' : 'ADMIN LOGIN';
-}
-
 document.getElementById('adminToggle').onclick = () => {
-  if (isAdmin) {
-    isAdmin = false;
-    localStorage.removeItem("wardrobe_admin");
-    updateAdminUI();
-    render();
-  } else {
-    const pass = prompt("أدخلي كلمة السر للإدارة:");
-    if (pass === ADMIN_PASS) {
-      isAdmin = true;
-      localStorage.setItem("wardrobe_admin", "true");
-      updateAdminUI();
-      render();
-    } else if (pass !== null) {
-      alert("كلمة السر غير صحيحة");
-    }
-  }
-};
-
-async function render() {
-  updateAdminUI();
-  document.getElementById('catTitle').textContent = titles[active];
-  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.cat === active));
-  const root = document.getElementById('looks');
-  
-  let cloudLooks = [];
-  try {
-    const snap = await looksCol.get();
-    snap.forEach(d => cloudLooks.push({ id: d.id, ...d.data() }));
-  } catch (err) {
-    console.error(err);
-  }
-
-  const allLooks = [...cloudLooks, ...initialGithubLooks].filter(x => x.cat === active);
-  root.innerHTML = '';
-
-  if (!allLooks.length) {
-    root.innerHTML = '<div class="empty">لا توجد أطقم في هذا القسم حالياً.</div>';
-    return;
-  }
-
-  allLooks.forEach(x => {
-    const c = document.createElement('article'); c.className = 'outfit';
-    const cover = document.createElement('div'); cover.className = 'cover';
-    if (x.cover) { const im = document.createElement('img'); im.src = x.cover; cover.append(im); }
-    const info = document.createElement('div'); info.className = 'info';
-    const n = document.createElement('p'); n.className = 'name'; n.textContent = x.name;
-    const m = document.createElement('div'); m.className = 'meta'; m.textContent = x.notes || '';
-    info.append(n, m);
-
-    if (isAdmin && !x.isGithub) {
-      const a = document.createElement('div'); a.className = 'actions';
-      const e = document.createElement('button'); e.className = 'small'; e.textContent = 'EDIT'; e.onclick = () => openEditor(x);
-      const d = document.createElement('button'); d.className = 'small'; d.textContent = 'DELETE';
-      d.onclick = async () => {
-        if (confirm('هل تريدين حذف هذا الطقم نهائياً؟')) {
-          await looksCol.doc(x.id).delete();
-          render();
-        }
-      };
-      a.append(e, d); info.append(a);
-    }
-c.append(cover, info); root.append(c);
-});
+if (isAdmin) { isAdmin = false; localStorage.removeItem("wardrobe_admin"); render(); }
+else {
+const pass = prompt("أدخلي كلمة السر للإدارة:");
+if (pass === ADMIN_PASS) { isAdmin = true; localStorage.setItem("wardrobe_admin", "true"); render(); }
+else if (pass !== null) alert("كلمة السر غير صحيحة");
 }
+};
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => { active = b.dataset.cat; render(); });
 const dlg = document.getElementById('editor');
 function openEditor(x) {
-editing = x || null;
-coverDataUrl = x?.cover || '';
+editing = x || null; coverDataUrl = x?.cover || '';
 document.getElementById('formTitle').textContent = x ? 'EDIT LOOK' : 'NEW LOOK';
 document.getElementById('lookName').value = x?.name || '';
 document.getElementById('lookCat').value = x?.cat || active;
 document.getElementById('notes').value = x?.notes || '';
 document.getElementById('coverInput').value = '';
-preview();
+document.getElementById('preview').innerHTML = coverDataUrl ? <img src="${coverDataUrl}"> : '';
 dlg.showModal();
-}
-function preview() {
-const p = document.getElementById('preview');
-p.innerHTML = '';
-if (coverDataUrl) { const im = document.createElement('img'); im.src = coverDataUrl; p.append(im); }
 }
 document.getElementById('newBtn').onclick = () => openEditor();
 document.getElementById('cancelBtn').onclick = () => dlg.close();
 document.getElementById('coverInput').onchange = async (e) => {
-if (e.target.files && e.target.files) {
-document.getElementById('saveBtn').textContent = "جاري تجهيز الصورة...";
-document.getElementById('saveBtn').disabled = true;
+if (e.target.files) {
+document.getElementById('saveBtn').textContent = "جاري التجهيز...";
 coverDataUrl = await compressImage(e.target.files);
-preview();
+document.getElementById('preview').innerHTML = <img src="${coverDataUrl}">;
 document.getElementById('saveBtn').textContent = "SAVE LOOK";
-document.getElementById('saveBtn').disabled = false;
 }
 };
 document.getElementById('saveBtn').onclick = async () => {
-const btn = document.getElementById('saveBtn');
-btn.textContent = "جاري الحفظ...";
-btn.disabled = true;
+if (!looksCol) { alert("جاري الاتصال بقاعدة البيانات، حاولي بعد ثوانٍ."); return; }
+const btn = document.getElementById('saveBtn'); btn.textContent = "جاري الحفظ..."; btn.disabled = true;
 try {
-const payload = {
-name: document.getElementById('lookName').value.trim() || 'Untitled Look',
-cat: document.getElementById('lookCat').value,
-cover: coverDataUrl,
-notes: document.getElementById('notes').value.trim(),
-createdAt: Date.now()
+const payload = { name: document.getElementById('lookName').value.trim() || 'Untitled Look', cat: document.getElementById('lookCat').value, cover: coverDataUrl, notes: document.getElementById('notes').value.trim() };
+if (editing && editing.id) await looksCol.doc(editing.id).update(payload);
+else await looksCol.add(payload);
+dlg.close(); await loadCloud();
+} catch (err) { alert("خطأ أثناء الحفظ: " + err.message); }
+btn.textContent = "SAVE LOOK"; btn.disabled = false;
 };
-if (editing && editing.id) {
-await looksCol.doc(editing.id).update(payload);
-} else {
-await looksCol.add(payload);
-}
-dlg.close();
-render();
-} catch (err) {
-alert("حدث خطأ أثناء الحفظ: " + err.message);
-}
-btn.textContent = "SAVE LOOK";
-btn.disabled = false;
-};
-render();
